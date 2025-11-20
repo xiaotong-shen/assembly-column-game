@@ -139,6 +139,8 @@ end_r_is_pressed:
 .end_macro
 
 init:
+load_asset(asset_clearscreen, $zero)
+
 li $v0, 4
 la $a0, prompt
 syscall
@@ -163,7 +165,7 @@ hard:
 li $s1, 16            
 read_diificulty_done:
 
-load_asset(asset_clearscreen, $zero)
+
 
 lw   $t0 , displayaddress
 lw   $t1,colour
