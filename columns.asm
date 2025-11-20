@@ -53,6 +53,7 @@ colour3: .word 0
 cur_x : .word 0
 cur_y : .word 0
 gravity_timer: .word 0
+prompt: .asciiz "Choose difficulty (1=Easy, 2=Normal, 3=Hard):"
 ##############################################################################
 
 ##############################################################################
@@ -138,6 +139,30 @@ end_r_is_pressed:
 .end_macro
 
 init:
+li $v0, 4
+la $a0, prompt
+syscall
+
+li $v0, 5
+syscall
+
+move $t0, $v0        # $s0 = difficulty
+li $t1, 1
+beq $t0, $t1, easy
+li $t1, 2
+beq $t0, $t1, normal
+li $t1, 3
+beq $t0, $t1, hard
+normal:
+li $s1, 24            # normal
+b read_diificulty_done
+easy:
+li $s1, 32           # easy
+b read_diificulty_done
+hard:
+li $s1, 16            
+read_diificulty_done:
+
 load_asset(asset_clearscreen, $zero)
 
 lw   $t0 , displayaddress
@@ -167,11 +192,15 @@ li $v0,32
 li $a0,1000
 syscall
 ###########################
+lw $t0,displayaddress
 
 jal new_piece
 nothing_at_bottom:
 lw $a0,cur_x    
 lw $a1,cur_y
+jal draw_piece
+li $a0,10 
+li $a1,2
 jal draw_piece
 
 #sleep
@@ -449,7 +478,7 @@ bne $t3,0,redraw
 lw  $t8, gravity_timer
 addi $t8, $t8, 1
 sw  $t8, gravity_timer
-li $t9,32
+move $t9,$s1  #this is where the speed is adjusted
 bne $t8,$t9,back
 la $t1,cur_y
 lw $t2,0($t1)
@@ -465,13 +494,19 @@ lw $a1,cur_y
 jal draw_piece
 lw $t1,cur_y
 addi $t1,$t1,-3
-bltz $t1,End #terminate if reaches the to
+bltz $t1,End #terminate if reaches the top
+j mark
+did_fall:
+j play_clear_sound
 mark:
 jal mark_line
 jal mark_vertical
 jal mark_right_diagonal
 jal mark_left_diagonal
 jal clear_marked_piece
+beq $t2,0,no_sound
+jal play_clear_sound
+no_sound:
 jal fall
 bne $t9,0,mark
 jal new_piece
@@ -696,6 +731,7 @@ jr $ra
 
 
 clear_marked_piece:
+li $t2,0
 addi $sp,$sp,-4
 sw $ra,0($sp)
 li $t4, 2         
@@ -716,6 +752,7 @@ add $t6,$t6,$t7    # t6 = ad(grid[index])
 lw $t8,0($t6)      # t8 = grid[index]
 li $t9,1
 bne $t8,$t9, clear_marked_piece_if_end
+li $t2,0
 move $a0,$t3         
 move $a1,$t4        
 jal erase_cell
@@ -827,6 +864,25 @@ jr $ra                          # return to the calling program.
 
 
 # SOUND FUNCTIONS
+play_clear_sound: 
+li $v0,33
+li $a0,81       
+li $a1,50        
+li $a2,0         
+li $a3,100
+
+li $v0,33
+li $a0,76        
+li $a1,50
+li $a2,0
+li $a3,90
+
+li $v0,33
+li $a0,72        
+li $a1,60
+li $a2,0
+li $a3,80
+j no_sound
 
 play_game_over_sound:
 li 	$v0, 31		# I		
