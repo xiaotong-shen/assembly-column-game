@@ -24,6 +24,13 @@ displayaddress : .word 0x10008000
 sideaddress:     .word 0x10008424
 # The address of the keyboard. Don't forget to connect it!
 ADDR_KBRD:.word 0xffff0000
+
+
+## Assets
+asset_endscreen:
+    .include "assets/endscreen.s"
+asset_clearscreen:
+    .include "assets/clearscreen.s"
 ##############################################################################
 grid:
 .space 328
@@ -36,13 +43,16 @@ colour:
 .word 0x8A2BE2  #store the purple
 .word 0xFF4C4C  #store the red
 
+black: .word 0x000000
+white: .word 0xffffff
+
 colour1: .word 0
 colour2: .word 0
 colour3: .word 0
+
 cur_x : .word 0
 cur_y : .word 0
 gravity_timer: .word 0
-prompt: .asciiz "Choose difficulty (1=Easy, 2=Normal, 3=Hard):"
 ##############################################################################
 
 ##############################################################################
@@ -50,27 +60,86 @@ prompt: .asciiz "Choose difficulty (1=Easy, 2=Normal, 3=Hard):"
 ##############################################################################
 ## draw the frame####################
 .text
-li $v0, 4
-la $a0, prompt
+
+## Macros
+.macro push(%reg)
+	sub $sp, $sp, 4
+	sw  %reg, 0($sp)	# push %reg
+.end_macro
+
+.macro pop(%reg)
+	lw  %reg, 0($sp)	# pop %reg
+	add $sp, $sp, 4
+.end_macro
+
+  # Macro to draw the %data asset, offsetted by a value of %offset
+.macro load_asset(%data, %offset)
+	push($t0)
+    push($t1)
+    push($a0)
+    push($a1)
+    la $t0 %data
+    lw $t1 0($t0) #Read the size of the file
+    addi $t0 $t0 4 #Skip to the first offset colour pair
+    
+    draw_asset_loop:
+        lw $a0 0($t0) #Offset
+        add $a0 $a0 %offset
+        lw $a1 4($t0) #Colour
+        
+        draw($a0, $a1)
+        addi $t0 $t0 8 #Go to the next offset colour pair
+        subi $t1 $t1 1
+        bgtz $t1, draw_asset_loop
+
+    pop($a1)
+    pop($a0)
+    pop($t1)
+    pop($t0)
+.end_macro
+
+.macro draw(%offset, %colour)
+	push($t2)
+    lw $t2, displayaddress
+    add $t2 $t2 %offset
+    sw %colour 0( $t2 )
+    pop($t2)
+.end_macro
+
+.macro quit()
+li $v0, 10                     
 syscall
-li $v0, 5
+.end_macro
+
+.macro sleep(%time)
+li 		$v0, 32
+li 		$a0, %time # time milliseconds
 syscall
-move $t0, $v0        # $s0 = difficulty
-li $t1, 1
-beq $t0, $t1, easy
-li $t1, 2
-beq $t0, $t1, normal
-li $t1, 3
-beq $t0, $t1, hard
-normal:
-li $s1, 24            # normal
-b read_diificulty_done
-easy:
-li $s1, 32           # easy
-b read_diificulty_done
-hard:
-li $s1, 16            
-read_diificulty_done:
+.end_macro
+
+# store 1 if r is pressed, 0 if not, in v0
+.macro is_r_pressed()
+lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
+lw $t8, 0($t0)                  # Load first word from keyboard
+beq $t8, 0, end_r_is_pressed     # If first word 1, key is pressed
+
+# assume key is pressed
+lw $a0, 4($t0)                  # Load second word from keyboard
+beq $a0, 0x72, if_key_equals_r 
+
+if_key_equals_r:
+li $v0, 1
+j end_r_is_pressed
+
+else_key_not_equal_r:
+li $v0, 0
+
+end_r_is_pressed:
+.end_macro
+
+init:
+load_asset(asset_clearscreen, $zero)
+
 lw   $t0 , displayaddress
 lw   $t1,colour
 addi $a0,$zero,1
@@ -98,16 +167,14 @@ li $v0,32
 li $a0,1000
 syscall
 ###########################
-lw $t0,displayaddress
+
 jal new_piece
 nothing_at_bottom:
 lw $a0,cur_x    
 lw $a1,cur_y
 jal draw_piece
-li $a0,10 
-li $a1,2
-jal draw_piece
 
+#sleep
 li $v0,32
 li $a0,16
 syscall
@@ -120,8 +187,7 @@ jal erase_piece
 jal gravity
 j keyboard_input
 
-li $v0, 10
-syscall
+j End
 
 #########################################
 ## Give the random colours and column
@@ -174,9 +240,8 @@ add $t1, $t1, $t4
 lw $t3, 0($t1)
 la $t2, colour3
 sw $t3, 0($t2)
+
 jr $ra
-
-
 
 # $a0 = the x coordinate of the first cell
 # $a1 = the y coordinate of the first cell
@@ -309,8 +374,7 @@ beq $a0, 0x77, respond_to_W
 b   nothing_at_bottom
 
 respond_to_Q:
-li $v0, 10                     
-syscall
+j End
 
 respond_to_W:
 lw $t1,colour1
@@ -385,7 +449,7 @@ bne $t3,0,redraw
 lw  $t8, gravity_timer
 addi $t8, $t8, 1
 sw  $t8, gravity_timer
-move $t9,$s1  #this is where the speed is adjusted
+li $t9,32
 bne $t8,$t9,back
 la $t1,cur_y
 lw $t2,0($t1)
@@ -401,26 +465,60 @@ lw $a1,cur_y
 jal draw_piece
 lw $t1,cur_y
 addi $t1,$t1,-3
-bltz $t1,End #terminate if reaches the top
-j mark
-did_fall:
-j play_clear_sound
+bltz $t1,End #terminate if reaches the to
 mark:
 jal mark_line
 jal mark_vertical
 jal mark_right_diagonal
 jal mark_left_diagonal
 jal clear_marked_piece
-beq $t2,0,no_sound
-jal play_clear_sound
-no_sound:
 jal fall
 bne $t9,0,mark
 jal new_piece
 b nothing_at_bottom
 End:
-li $v0, 10                     
-syscall
+# jal DisplayGameOver
+# loop/sleep for three second, if r is not pressed then terminate
+load_asset(asset_endscreen, $zero)
+jal play_game_over_sound
+
+# use t0
+addi $t0, $zero, 0
+end_loop:
+beq $t0, 5, end_end_loop
+sleep(10)
+is_r_pressed()
+beq $v0, 1, init
+addi $t0, $t0, 1
+end_end_loop:
+quit()
+
+
+erase_board:
+##  The draw_rect function (Provided by profs)
+##  - Draws a rectangle at a given X and Y coordinate 
+#
+# $a0 = the x coordinate of the line
+# $a1 = the y coordinate of the line
+# $a2 = the width of the rectangle
+# $a3 = the height of the rectangle
+# $t1 = the colour for this line
+addi $sp, $sp, -4 
+sw $ra, 0($sp) # i guess this is indexing (?)
+
+li $a0, 0
+li $a1, 0
+li $a2, 32
+li $a3, 32
+lw $t1, black
+
+jal draw_rect
+
+lw $ra, 0($sp)
+addi $sp, $sp, 4
+
+jr $ra
+
 
 mark_line:
 li $a0,6
@@ -595,8 +693,9 @@ jr $ra
 
 
 
+
+
 clear_marked_piece:
-li $t2,0
 addi $sp,$sp,-4
 sw $ra,0($sp)
 li $t4, 2         
@@ -617,7 +716,6 @@ add $t6,$t6,$t7    # t6 = ad(grid[index])
 lw $t8,0($t6)      # t8 = grid[index]
 li $t9,1
 bne $t8,$t9, clear_marked_piece_if_end
-addi $t2,$t2,1
 move $a0,$t3         
 move $a1,$t4        
 jal erase_cell
@@ -679,26 +777,156 @@ j fall_outer_loop
 fall_outer_loop_end:
 jr $ra
 
-play_clear_sound: 
-li $v0,33
-li $a0,81       
-li $a1,50        
-li $a2,0         
-li $a3,100
+
+##  The draw_rect function (Provided by profs)
+##  - Draws a rectangle at a given X and Y coordinate 
+#
+# $a0 = the x coordinate of the line
+# $a1 = the y coordinate of the line
+# $a2 = the width of the rectangle
+# $a3 = the height of the rectangle
+draw_rect:
+# no registers to initialize (use $a3 as the loop variable)
+# restore a2 and a3
+addi $sp, $sp, -12
+sw $ra, 0($sp)
+sw $t2, 4($sp)
+sw $t3, 8($sp)
+rect_loop_start:
+beq $a3, $zero, rect_loop_end   # test if the stopping condition has been satisfied
+addi $sp, $sp, -4               # move the stack pointer to an empty location
+sw $ra, 0($sp)                  # push $ra onto the stack
+addi $sp, $sp, -4               # move the stack pointer to an empty location
+sw $a0, 0($sp)                  # push $a0 onto the stack
+addi $sp, $sp, -4               # move the stack pointer to an empty location
+sw $a1, 0($sp)                  # push $a1 onto the stack
+addi $sp, $sp, -4               # move the stack pointer to an empty location
+sw $a2, 0($sp)                  # push $a2 onto the stack
+
+jal draw_line_horizon                # call the draw_line function.
+
+lw $a2, 0($sp)                  # pop $a2 from the stack
+addi $sp, $sp, 4                # move the stack pointer to the top stack element
+lw $a1, 0($sp)                  # pop $a1 from the stack
+addi $sp, $sp, 4                # move the stack pointer to the top stack element
+lw $a0, 0($sp)                  # pop $a0 from the stack
+addi $sp, $sp, 4                # move the stack pointer to the top stack element
+lw $ra, 0($sp)                  # pop $ra from the stack
+addi $sp, $sp, 4                # move the stack pointer to the top stack element
+addi $a1, $a1, 1                # move the Y coordinate down one row in the bitmap
+addi $a3, $a3, -1               # decrement loop variable $a3 by 1
+j rect_loop_start               # jump to the top of the loop.
+
+rect_loop_end:
+lw $ra, 0($sp)
+lw $t2, 4($sp)
+lw $t3, 8($sp)
+addi $sp, $sp, 12
+
+jr $ra                          # return to the calling program.
+
+
+# SOUND FUNCTIONS
+
+play_game_over_sound:
+li 	$v0, 31		# I		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 64 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
 syscall
 
-li $v0,33
-li $a0,76        
-li $a1,50
-li $a2,0
-li $a3,90
+li 	$v0, 31		# IV		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 65 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 69 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
 syscall
 
-li $v0,33
-li $a0,72        
-li $a1,60
-li $a2,0
-li $a3,80
+li 	$v0, 31		# V7		
+li 	$a0, 62 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
 syscall
-j no_sound
-    
+li 	$v0, 31				
+li 	$a0, 65 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 71 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+li 	$v0, 31		# I		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 64 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+jr 	$ra
