@@ -1,3 +1,5 @@
 # assembly-column-game
-Easy feature 1,2,3,10 is implmented
-Easy feature 5 is half-way done
+Easy feature 1,2,3,4,5,10 is implmented
+
+Still need to do (Xiaotong):
+- Feature 6, 7
