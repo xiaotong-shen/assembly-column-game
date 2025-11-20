@@ -21,7 +21,9 @@
 ##############################################################################
 # The address of the bitmap display. Don't forget to connect it!
 displayaddress : .word 0x10008000
-sideaddress:     .word 0x10008424
+score_first:     .word 0x10008320
+score_second:     .word 0x10008336
+score_third:     .word 0x10008352
 # The address of the keyboard. Don't forget to connect it!
 ADDR_KBRD:.word 0xffff0000
 
@@ -49,7 +51,6 @@ white: .word 0xffffff
 colour1: .word 0
 colour2: .word 0
 colour3: .word 0
-
 cur_x : .word 0
 cur_y : .word 0
 gravity_timer: .word 0
@@ -194,9 +195,11 @@ li $v0,32
 li $a0,1000
 syscall
 ###########################
+li $s5,0
 lw $t0,displayaddress
-
 jal new_piece
+
+
 nothing_at_bottom:
 lw $a0,cur_x    
 lw $a1,cur_y
@@ -204,6 +207,76 @@ jal draw_piece
 li $a0,10 
 li $a1,2
 jal draw_piece
+
+li $a0,15       
+li $a1,3
+jal erase_score
+
+li $a0,20         
+li $a1,3
+jal erase_score
+
+
+# the leading number
+li $t1, 0xD3D3D3
+li $a0,16 
+li $a1,2
+li $t4,10
+div $s5,$t4
+mflo $t3
+li $a0,15
+li $a1,3
+li $t6,0
+beq $t3,$t6,draw_zero
+li $t6,1
+beq $t3,$t6,draw_one
+li $t6,2
+beq $t3,$t6,draw_two
+li $t6,3
+beq $t3,$t6,draw_three
+li $t6,4
+beq $t3,$t6,draw_four
+li $t6,5
+beq $t3,$t6,draw_five
+li $t6,6
+beq $t3,$t6,draw_six
+li $t6,7
+beq $t3,$t6,draw_seven
+li $t6,8
+beq $t3,$t6,draw_eight
+li $t6,9
+beq $t3,$t6,draw_nine
+
+draw_second_number:
+# the second number
+li $a0,20 
+li $a1,3
+li $t4,10
+div $s5,$t4
+mfhi $t3
+li $t6,0
+beq $t3,$t6,draw_second_zero
+li $t6,1
+beq $t3,$t6,draw_second_one
+li $t6,2
+beq $t3,$t6,draw_second_two
+li $t6,3
+beq $t3,$t6,draw_second_three
+li $t6,4
+beq $t3,$t6,draw_second_four
+li $t6,5
+beq $t3,$t6,draw_second_five
+li $t6,6
+beq $t3,$t6,draw_second_six
+li $t6,7
+beq $t3,$t6,draw_second_seven
+li $t6,8
+beq $t3,$t6,draw_second_eight
+li $t6,9
+beq $t3,$t6,draw_second_nine
+
+
+draw_score_finished:
 
 #sleep
 li $v0,32
@@ -214,6 +287,9 @@ syscall
 lw $a0,cur_x    
 lw $a1,cur_y
 jal erase_piece
+
+
+
 
 jal gravity
 j keyboard_input
@@ -271,7 +347,6 @@ add $t1, $t1, $t4
 lw $t3, 0($t1)
 la $t2, colour3
 sw $t3, 0($t2)
-
 jr $ra
 
 # $a0 = the x coordinate of the first cell
@@ -321,6 +396,31 @@ sw $t1, 128($t5)
 sw $t1, 256($t5)
 addi $ra,$t7,0
 jr $ra
+
+
+erase_score:
+addi $t7,$ra,0
+jal get_address
+li $t1,0
+move $t5,$v0
+sw $t1, 0($t5)
+sw $t1, 4($t5)
+sw $t1, 8($t5)
+sw $t1, 128($t5)
+sw $t1, 132($t5)
+sw $t1, 136($t5)
+sw $t1, 256($t5)
+sw $t1, 260($t5)
+sw $t1, 264($t5)
+sw $t1, 384($t5)
+sw $t1, 388($t5)
+sw $t1, 392($t5)
+sw $t1, 512($t5)
+sw $t1, 516($t5)
+sw $t1, 520($t5)
+addi $ra,$t7,0
+jr $ra
+
 
 
 # $a0 = the x coordinate of the cell
@@ -507,6 +607,10 @@ jal mark_right_diagonal
 jal mark_left_diagonal
 jal clear_marked_piece
 beq $t2,0,no_sound
+beq $s1,11,maximum_speed
+addi $s1,$s1,-1
+
+maximum_speed:
 jal play_clear_sound
 no_sound:
 jal fall
@@ -730,8 +834,6 @@ jr $ra
 
 
 
-
-
 clear_marked_piece:
 li $t2,0
 addi $sp,$sp,-4
@@ -754,11 +856,12 @@ add $t6,$t6,$t7    # t6 = ad(grid[index])
 lw $t8,0($t6)      # t8 = grid[index]
 li $t9,1
 bne $t8,$t9, clear_marked_piece_if_end
-li $t2,0
+addi $t2,$t2,1
 move $a0,$t3         
 move $a1,$t4        
 jal erase_cell
 sw $zero, 0($t6)
+addi $s5,$s5,1
 clear_marked_piece_if_end:
 addi $t3, $t3, 1      
 j clear_marked_piece_inner_loop
@@ -872,119 +975,614 @@ li $a0,81
 li $a1,50        
 li $a2,0         
 li $a3,100
+syscall
 
 li $v0,33
 li $a0,76        
 li $a1,50
 li $a2,0
 li $a3,90
+syscall
 
 li $v0,33
 li $a0,72        
 li $a1,60
 li $a2,0
 li $a3,80
+syscall
 j no_sound
 
-play_game_over_sound:
-li 	$v0, 31		# I		
-li 	$a0, 60 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 64 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 67 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 33	
-li 	$a0, 72 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
+   
+############################################################
+#Draw the numbers for score display
+############################################################
+# 0
+draw_second_zero:
+    move $t4, $a0          # x
+    move $t5, $a1          # y
 
-li 	$v0, 31		# IV		
-li 	$a0, 60 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 65 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 69 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 33	
-li 	$a0, 72 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
 
-li 	$v0, 31		# V7		
-li 	$a0, 62 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 65 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 67 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 33	
-li 	$a0, 71 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
+    move $a0, $t4
+    move $a1, $t5
+    addi $a1, $a1, 4
+    li   $a2, 3
+    jal  draw_line_horizon
 
-li 	$v0, 31		# I		
-li 	$a0, 60 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 64 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 31				
-li 	$a0, 67 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
-li 	$v0, 33	
-li 	$a0, 72 			
-li 	$a1, 500
-li 	$a2, 0
-li 	$a3, 127
-syscall
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
 
-jr 	$ra
+    move $a0, $t4
+    addi $a0, $a0, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 1
+draw_second_one:
+    move $t4, $a0
+    move $t5, $a1
+
+    addi $a0, $t4, 1
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 2
+draw_second_two:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 3
+draw_second_three:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 4
+draw_second_four:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 5
+draw_second_five:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 6
+draw_second_six:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 7
+draw_second_seven:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 8
+draw_second_eight:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+
+
+# 9
+draw_second_nine:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_score_finished
+# 0
+draw_zero:
+    move $t4, $a0          # base x
+    move $t5, $a1          # base y
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    addi $a1, $a1, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a0, $a0, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 1
+draw_one:
+    move $t4, $a0
+    move $t5, $a1
+
+    addi $a0, $t4, 1
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 2
+draw_two:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 3
+draw_three:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+    
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 4
+draw_four:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+    
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 5
+draw_five:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+    
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 6
+draw_six:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+    
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 7
+draw_seven:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 8
+draw_eight:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
+
+
+# 9
+draw_nine:
+    move $t4, $a0
+    move $t5, $a1
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 2
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    addi $a1, $t5, 4
+    li   $a2, 3
+    jal  draw_line_horizon
+
+    move $a0, $t4
+    move $a1, $t5
+    li   $a2, 3
+    jal  draw_line_vertical
+
+    addi $a0, $t4, 2
+    move $a1, $t5
+    li   $a2, 5
+    jal  draw_line_vertical
+
+    move $a0, $t4
+    move $a1, $t5
+    j draw_second_number
