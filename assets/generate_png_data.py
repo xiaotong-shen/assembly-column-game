@@ -1,7 +1,7 @@
 from PIL import Image
 
 # === SETTINGS ===
-INPUT_IMAGE = "/Users/xiaotongshen/Desktop/github/assembly-column-game/assets/art/clearscreen.png"
+INPUT_IMAGE = "/Users/xiaotongshen/Desktop/github/assembly-column-game/assets/art/pausedscreen.png"
 OUTPUT_FILE = "pause_asset.s"       # MIPS output
 SCREEN_WIDTH = 32                  # Saturn pixel width
 WORD_SIZE = 4                       # bytes per pixel
@@ -20,12 +20,12 @@ def pixel_offset(x, y):
 
 def generate_entries():
     img = Image.open(INPUT_IMAGE).convert("RGB")
-    img = img.resize((32, 32), Image.NEAREST)
+    width, height = img.size 
 
     entries = []
 
-    for y in range(32):
-        for x in range(32):
+    for y in range(height):
+        for x in range(width):
             r, g, b = img.getpixel((x, y))
 
             if BACKGROUND_COLOR and (r, g, b) == BACKGROUND_COLOR:

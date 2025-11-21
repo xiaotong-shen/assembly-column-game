@@ -2,7 +2,7 @@
 # This file contains our implementation of Columns.
 #
 # Student 1: Lu Wang,1009921159
-# Student 2: XiaoTong Shen 
+# Student 2: Xiaotong Shen, 1011548773
 #
 # We assert that the code submitted here is entirely our own 
 # creation, and will indicate otherwise when it is not.
@@ -33,6 +33,8 @@ asset_endscreen:
     .include "assets/endscreen.s"
 asset_clearscreen:
     .include "assets/clearscreen.s"
+asset_pausescreen:
+    .include "assets/pausescreen.s"
 ##############################################################################
 grid:
 .space 328
@@ -105,6 +107,26 @@ prompt: .asciiz "Choose difficulty (1=Easy, 2=Normal, 3=Hard):"
     lw $t2, displayaddress
     add $t2 $t2 %offset
     sw %colour 0( $t2 )
+    pop($t2)
+.end_macro
+
+.macro get_offset(%x, %y)
+    # use t1 and t2 as temporary storage, v0 as return value
+    push($t1)
+    push($t2)
+    
+    addi $t1, %x, 0
+    addi $t2, %y, 0
+    # now t1 and t2 are both the x and y respectively
+    
+    sll $t1, $t1, 2
+    sll $t2, $t2, 7
+    # shift both equivalent to multiplying by factor of 4 and 128 respectively
+    
+    add $v0, $t1, $t2
+    # return value
+    
+    pop($t1)
     pop($t2)
 .end_macro
 
@@ -349,11 +371,15 @@ la $t2, colour3
 sw $t3, 0($t2)
 jr $ra
 
+# $t0 is the start address of display (?)
 # $a0 = the x coordinate of the first cell
 # $a1 = the y coordinate of the first cell
 get_address:
+# offset
 sll $t1,$a0,2
 sll $t2,$a1,7
+# t0 is the start address
+lw $t0, displayaddress
 add $v0,$t1,$t0
 add $v0,$v0,$t2
 jr $ra
@@ -370,6 +396,8 @@ jr $ra
 # &t7 = &ra for draw_piece
 draw_piece:
 addi $t7,$ra,0
+lw $a0, cur_x
+lw $a1, cur_y
 jal get_address
 move $t5,$v0
 lw $t1, colour1
@@ -502,10 +530,60 @@ beq $a0, 0x61, respond_to_A
 beq $a0, 0x64, respond_to_D    
 beq $a0, 0x73, respond_to_S 
 beq $a0, 0x77, respond_to_W
+beq $a0, 0x70, respond_to_P
 b   nothing_at_bottom
 
 respond_to_Q:
 j End
+
+respond_to_P:
+# assume P is pressed at this point
+# logic: load the pause screen and then go into infinite loop until P is pressed again?
+
+# omit : load pause screen TODO: draw pause screen as 32x16 (w x h), w offset half way
+# offset just with x = 0, y = 16
+
+push($t3)
+push($t4)
+
+li $t3, 16
+get_offset($zero, $t3)
+# return value stored in v0, store retur nvalue in t4
+move $t4, $v0
+
+# draw/load asset at the position
+load_asset(asset_pausescreen, $t4)
+
+lw $a0,cur_x    
+lw $a1,cur_y
+jal draw_piece
+
+P_loop:
+sleep(5)
+
+
+lw $t0, ADDR_KBRD               # $t0 = base address for keyboard
+lw $t8, 0($t0)                  # Load first word from keyboard
+beq $t8, 1, P_loop_key_pressed      # If first word 1, key is pressed
+
+# assume that no key is pressed
+j P_loop
+
+P_loop_key_pressed:
+# assume that a key is pressed, now check if its P
+lw $a0, 4($t0)                  # Load second word from keyboard
+# (keyboard stores in pairs of 1/0 high if a key is pressed, and then the second is w
+beq $a0, 0x70, end_P_loop    # Check if the key p is pressed, if so , end pause and go bakc to nothing at bottom (game loop)
+
+# remove the pause screen, $  t4 is the original offset position
+j P_loop
+
+end_P_loop:
+load_asset(asset_clearscreen, $t4)
+pop($t4)
+pop($t3)
+
+j nothing_at_bottom # jump to start of game loop (nothing at bottom is start loop)
 
 respond_to_W:
 lw $t1,colour1
@@ -991,6 +1069,109 @@ li $a2,0
 li $a3,80
 syscall
 j no_sound
+
+play_game_over_sound:
+li 	$v0, 31		# I		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 64 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+li 	$v0, 31		# IV		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 65 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 69 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+li 	$v0, 31		# V7		
+li 	$a0, 62 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 65 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 71 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+li 	$v0, 31		# I		
+li 	$a0, 60 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 64 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 31				
+li 	$a0, 67 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+li 	$v0, 33	
+li 	$a0, 72 			
+li 	$a1, 500
+li 	$a2, 0
+li 	$a3, 127
+syscall
+
+jr 	$ra
 
    
 ############################################################
