@@ -57,6 +57,23 @@ cur_x : .word 0
 cur_y : .word 0
 gravity_timer: .word 0
 prompt: .asciiz "Choose difficulty (1=Easy, 2=Normal, 3=Hard):"
+
+notes:
+    .word 69   # A
+    .word 71   # B
+    .word 60   # C
+    .word 62   # D
+    .word 64   # E
+    .word 65   # F
+    .word 67   # G
+    
+
+duration: .word 50
+instrument: .word 0
+volume: .word 100
+
+music_counter: .word 0
+
 ##############################################################################
 
 ##############################################################################
@@ -161,6 +178,68 @@ li $v0, 0
 end_r_is_pressed:
 .end_macro
 
+.macro play_note(%pitch) # assume that a0 has the pitch
+    li $v0,33
+    addi $a0, %pitch, 0       
+    li $a1,50        
+    li $a2,0         
+    li $a3,100
+    syscall
+.end_macro
+
+.macro play_chord(%chord)
+    li 	$v0, 31				# C
+    addi $a0, %chord, 0	
+    li 	$a1, 150
+    li 	$a2, 0
+    li 	$a3, 127
+    syscall
+.end_macro
+
+.macro play_a_minor()
+    push($a0)
+    li $a0, 69
+    play_note($a0)
+    li $a0, 72
+    play_note($a0)
+    li $a0, 76
+    play_note($a0)
+.end_macro
+
+.macro play_g_major()
+    push($a0)
+    li $a0, 67      # G
+    play_note($a0)
+    li $a0, 71      # B
+    play_note($a0)
+    li $a0, 74      # D
+    play_note($a0)
+    pop($a0)
+.end_macro
+
+.macro play_f_major()
+    push($a0)
+    li $a0, 65      # F
+    play_note($a0)
+    li $a0, 69      # A
+    play_note($a0)
+    li $a0, 72      # C
+    play_note($a0)
+    pop($a0)
+.end_macro
+
+.macro play_e_major()
+    push($a0)
+    li $a0, 64      # E
+    play_note($a0)
+    li $a0, 68      # G#
+    play_note($a0)
+    li $a0, 71      # B
+    play_note($a0)
+    pop($a0)
+.end_macro
+
+
 init:
 load_asset(asset_clearscreen, $zero)
 
@@ -223,6 +302,7 @@ jal new_piece
 
 
 nothing_at_bottom:
+
 lw $a0,cur_x    
 lw $a1,cur_y
 jal draw_piece
@@ -299,6 +379,48 @@ beq $t3,$t6,draw_second_nine
 
 
 draw_score_finished:
+
+# load counter
+lw $t0, music_counter
+
+addi $t0, $t0, 1          # counter++
+sw $t0, music_counter
+
+# play music every 50 frames
+li   $t1, 50
+beq  $t0, $t1, a_minor
+
+li   $t1, 100
+beq  $t0, $t1, g_major
+
+li   $t1, 150
+beq  $t0, $t1, f_major
+
+li   $t1, 200
+beq  $t0, $t1, e_major
+
+# otherwise skip
+j skip_music
+
+# ----- play the note -----
+a_minor:
+play_a_minor()
+j skip_music
+g_major:
+play_g_major()
+j skip_music
+f_major:
+play_f_major()
+j skip_music
+e_major:
+play_e_major()
+# -------------------------
+
+done_note:
+li   $t0, 0                # reset counter
+sw   $t0, music_counter
+
+skip_music:
 
 #sleep
 li $v0,32
