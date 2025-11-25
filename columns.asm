@@ -53,6 +53,9 @@ white: .word 0xffffff
 colour1: .word 0
 colour2: .word 0
 colour3: .word 0
+side_colour1: .word 0
+side_colour2: .word 0
+side_colour3: .word 0
 cur_x : .word 0
 cur_y : .word 0
 gravity_timer: .word 0
@@ -298,18 +301,35 @@ syscall
 ###########################
 li $s5,0
 lw $t0,displayaddress
+
 jal new_piece
+jal draw_piece
 
+jal new_side_colour
+jal draw_side_piece
 
+j start_score
+
+something_at_bottom:
+jal new_spawn_locatin
+lw $t1,side_colour1
+lw $t2,side_colour2
+lw $t3,side_colour3
+sw $t1,colour1
+sw $t2,colour2
+sw $t3,colour3
+jal draw_piece
+
+jal new_side_colour
+jal draw_side_piece
 nothing_at_bottom:
 
 lw $a0,cur_x    
 lw $a1,cur_y
 jal draw_piece
-li $a0,10 
-li $a1,2
-jal draw_piece
 
+
+start_score:
 li $a0,15       
 li $a1,3
 jal erase_score
@@ -433,15 +453,63 @@ lw $a1,cur_y
 jal erase_piece
 
 
-
-
 jal gravity
 j keyboard_input
 
 j End
 
 #########################################
-## Give the random colours and column
+new_side_colour:
+li $v0, 42
+li $a0, 0
+li $a1, 6
+syscall
+addi $a0,$a0,1
+sll $t4, $a0, 2
+la $t1, colour
+add $t1, $t1, $t4
+lw $t3, 0($t1)
+la $t2, side_colour1
+sw $t3, 0($t2)
+
+li $v0, 42
+li $a0, 0
+li $a1, 6
+syscall
+addi $a0,$a0,1
+sll $t4, $a0, 2
+la $t1, colour
+add $t1, $t1, $t4
+lw $t3, 0($t1)
+la $t2, side_colour2
+sw $t3, 0($t2)
+
+li $v0, 42
+li $a0, 0
+li $a1, 6
+syscall
+addi $a0,$a0,1
+sll $t4, $a0, 2
+la $t1, colour
+add $t1, $t1, $t4
+lw $t3, 0($t1)
+la $t2, side_colour3
+sw $t3, 0($t2)
+jr $ra
+
+new_spawn_locatin:
+li $v0, 42       
+li $a0, 0        
+li $a1, 6       
+syscall            
+addi $a0,$a0, 2    
+la $t1,cur_x
+sw $a0,0($t1)   
+la $t1,cur_y
+li $t2, 2
+sw $t2, 0($t1)
+jr $ra
+
 new_piece:
 #random column(x coordinates)
 li $v0, 42       
@@ -530,6 +598,23 @@ sw $t2, 128($t5)
 sw $t3, 256($t5)
 addi $ra,$t7,0
 jr $ra
+
+
+draw_side_piece:
+addi $t7,$ra,0
+li $a0, 10
+li $a1, 2
+jal get_address
+move $t5,$v0
+lw $t1, side_colour1
+lw $t2, side_colour1+4
+lw $t3, side_colour1+8
+sw $t1, 0($t5)
+sw $t2, 128($t5)
+sw $t3, 256($t5)
+addi $ra,$t7,0
+jr $ra
+
 
 ##
 # $a0 = the x coordinate of the first cell
@@ -815,8 +900,7 @@ jal play_clear_sound
 no_sound:
 jal fall
 bne $t9,0,mark
-jal new_piece
-b nothing_at_bottom
+b something_at_bottom
 End:
 # jal DisplayGameOver
 # loop/sleep for three second, if r is not pressed then terminate
