@@ -1,0 +1,12 @@
+[package]
+name = "saturn-capture"
+version = "0.1.0"
+edition = "2021"
+description = "Runs columns.asm headlessly on Saturn's MIPS backend and dumps bitmap-display frames."
+
+[dependencies]
+# Saturn's backend (the same assembler/CPU/syscall/keyboard code the Saturn app uses)
+saturn_backend = { git = "https://github.com/1whatleytay/saturn.git", rev = "db965b6" }
+titan = { git = "https://github.com/1whatleytay/titan.git", branch = "risc-v" }
+async-trait = "0.1"
+futures = "0.3"
